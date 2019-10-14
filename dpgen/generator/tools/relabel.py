@@ -5,6 +5,7 @@ import numpy as np
 import subprocess as sp
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 from lib.pwscf import make_pwscf_input
+from lib.siesta import make_siesta_input
 from lib.vasp import make_vasp_incar
 from lib.vasp import system_from_poscar
 import dpdata
@@ -71,6 +72,13 @@ def make_pwscf(tdir, fp_params, mass_map, fp_pp_path, fp_pp_files, user_input) :
     open('input', 'w').write(ret)        
     os.chdir(cwd)
 
+def make_siesta(tdir, fp_params, fp_pp_path, fp_pp_files) :
+    cwd = os.getcwd()
+    os.chdir(tdir)
+    sys_data = system_from_poscar('POSCAR')
+    ret = make_siesta_input(sys_data, fp_pp_files, fp_params)
+    open('input', 'w').write(ret)
+    os.chdir(cwd)
 
 def create_init_tasks(target_folder, param_file, output, fp_json, verbose = True) :
     target_folder = os.path.abspath(target_folder)
@@ -103,7 +111,7 @@ def create_init_tasks(target_folder, param_file, output, fp_json, verbose = True
         for ff in range(nframes) :
             task_dir = os.path.join(sys_dir, 'task.%06d' % ff)
             os.makedirs(task_dir, exist_ok = True)
-            sys.to_vasp_poscar(os.path.join(task_dir, 'POSCAR'))
+            sys.to_vasp_poscar(os.path.join(task_dir, 'POSCAR'), frame_idx=ff)
             # make fp
             cwd_ = os.getcwd()
             os.chdir(task_dir)
@@ -123,10 +131,12 @@ def create_init_tasks(target_folder, param_file, output, fp_json, verbose = True
                     fp_params = fp_jdata['fp_params']
                     user_input = False
                 make_pwscf('.', fp_params, mass_map, fp_pp_files, fp_pp_files, user_input)
+            elif fp_style == 'siesta':
+                make_siesta('.', fp_params, fp_pp_files, fp_pp_files)
             os.chdir(cwd_)            
     
 
-def create_tasks(target_folder, param_file, output, fp_json, verbose = True) :
+def create_tasks(target_folder, param_file, output, fp_json, verbose = True, numb_iter = -1) :
     target_folder = os.path.abspath(target_folder)
     output = os.path.abspath(output)
     tool_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'template')    
@@ -154,7 +164,7 @@ def create_tasks(target_folder, param_file, output, fp_json, verbose = True) :
     iters = glob.glob('iter.[0-9]*[0-9]')
     iters.sort()
     # iters = iters[:2]
-    for ii in iters :
+    for ii in iters[:numb_iter] :
         iter_tasks = glob.glob(os.path.join(ii, '02.fp', 'task.[0-9]*[0-9].[0-9]*[0-9]'))
         iter_tasks.sort()
         if verbose :
@@ -202,6 +212,8 @@ def create_tasks(target_folder, param_file, output, fp_json, verbose = True) :
             make_vasp_incar(output, fp_incar)
     if fp_style == 'pwscf' :
         copy_pp_files(output, fp_pp_path, fp_pp_files)        
+    if fp_style == 'siesta' :
+        copy_pp_files(output, fp_pp_path, fp_pp_files)
     for si in range(numb_sys) :
         sys_dir = os.path.join(output, 'system.%03d' % si)
         if verbose :
@@ -241,6 +253,8 @@ def create_tasks(target_folder, param_file, output, fp_json, verbose = True) :
                     fp_params = fp_jdata['fp_params']
                     user_input = False
                 make_pwscf('.', fp_params, mass_map, fp_pp_files, fp_pp_files, user_input)
+            elif fp_style == 'siesta':
+                make_siesta('.', fp_params, mass_map, fp_pp_files, fp_pp_files)
             os.chdir(cwd_)
     os.chdir(cwd)
 
@@ -255,11 +269,13 @@ def _main()   :
                         help="the output directory of relabel tasks")
     parser.add_argument('-p',"--parameter", type=str, default = 'param.json',
                         help="the json file provides DP-GEN paramters, should be located in JOB_DIR")
+    parser.add_argument('-n',"--numb-iter", type=int, default = -1,
+                        help="number of iterations to relabel")
     parser.add_argument('-v',"--verbose", action = 'store_true',
                         help="being loud")
     args = parser.parse_args()
             
-    create_tasks(args.JOB_DIR, args.parameter, args.OUTPUT, args.PARAM, verbose = args.verbose)
+    create_tasks(args.JOB_DIR, args.parameter, args.OUTPUT, args.PARAM, numb_iter = args.numb_iter, verbose = args.verbose)
     create_init_tasks(args.JOB_DIR, args.parameter, args.OUTPUT, args.PARAM, verbose = args.verbose)
 
 if __name__ == '__main__':

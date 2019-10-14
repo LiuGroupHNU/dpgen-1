@@ -362,12 +362,14 @@ def make_scale(jdata):
     create_path(work_path)
     for ii in init_sys :
         for jj in scale :
-            pos_src = os.path.join(os.path.join(init_path, ii), 'CONTCAR')
-            if not os.path.isfile(pos_src):
-                if skip_relax :
-                    pos_src = os.path.join(os.path.join(init_path, ii), 'POSCAR')
+            if skip_relax :
+                pos_src = os.path.join(os.path.join(init_path, ii), 'POSCAR')
+                assert(os.path.isfile(pos_src))
+            else :
+                try:
+                    pos_src = os.path.join(os.path.join(init_path, ii), 'CONTCAR')
                     assert(os.path.isfile(pos_src))
-                else :
+                except:
                     raise RuntimeError("not file %s, vasp relaxation should be run before scale poscar")
             scale_path = os.path.join(work_path, ii)
             scale_path = os.path.join(scale_path, "scale-%.3f" % jj)
@@ -531,16 +533,20 @@ def coll_vasp_md(jdata) :
                                % (path_md, ii)) 
 
         flag=True
+        if ("type_map" in jdata) and isinstance(jdata["type_map"], list):
+            type_map = jdata["type_map"]
+        else:
+            type_map = None 
         for oo in valid_outcars :
             if flag:
-                _sys = dpdata.LabeledSystem(oo)
+                _sys = dpdata.LabeledSystem(oo, type_map= type_map)
                 if len(_sys)>0:
                    all_sys=_sys
                    flag=False
                 else:
                    pass
             else:
-                _sys = dpdata.LabeledSystem(oo)
+                _sys = dpdata.LabeledSystem(oo, type_map= type_map)
                 if len(_sys)>0:
                    all_sys.append(_sys)
         # create deepmd data
